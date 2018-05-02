@@ -31,6 +31,9 @@ from openerp.exceptions import UserError, ValidationError
 import openerp.addons.decimal_precision as dp
 from openerp.tools import float_is_zero, float_compare
 import json
+import logging
+_logger = logging.getLogger(__name__)
+
 
 class AccountInvoice(models.Model):
     _inherit = "account.invoice"
@@ -402,18 +405,38 @@ class AccountInvoice(models.Model):
                 ###################################################
                 move_dict.update({'line_ids': lines})
 
+                _logger.info('MOOOOOOOOVEEEEEEEEEEEEEEEEEEEEEEEEEEEEEEE')
                 move = move_obj.create(move_dict)
                 move.post()
+                _logger.info(move)
+                _logger.info(len(move.line_ids))
+                _logger.info('LIIIIIIINEEEEEEEEEEEEE')
+                ###
                 aml_to_reconcile_advance = move.line_ids[0]
                 # Creamos la partida para "descargar" la cuenta de Anticipo de Cliente / Proveedor
                 aml_to_reconcile = move.line_ids[1]
+                if invoice.type == 'out_invoice' and move.line_ids[0].debit <= 0:
+                    aml_to_reconcile_advance = move.line_ids[0]
+                    aml_to_reconcile = move.line_ids[1]
+                ###
+                _logger.info(aml_to_reconcile_advance.credit)
+                _logger.info(aml_to_reconcile_advance.debit)
+                _logger.info(aml_to_reconcile_advance.tax_id_secondary)
+                _logger.info(aml_to_reconcile.credit)
+                _logger.info(aml_to_reconcile.debit)
+                _logger.info(aml_to_reconcile.tax_id_secondary)
+                _logger.info(credit_aml.debit)
+                _logger.info(credit_aml.credit)
+                _logger.info(credit_aml.tax_id_secondary)
                 (aml_to_reconcile_advance + credit_aml).reconcile()
-
+                _logger.info('OOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOOO')
             if aml_to_reconcile: # Se aplico Anticipo
                 ###
                 if credit_aml.payment_id:
                     credit_aml.payment_id.write({'invoice_ids': [(4, self.id, None)]})
+                #return invoice.register_payment(credit_aml)
                 ###
+                #raise UserError(_('1'))
                 return self.register_payment(aml_to_reconcile)
             else:
                 if not credit_aml.currency_id and invoice.currency_id != invoice.company_id.currency_id:
@@ -422,5 +445,6 @@ class AccountInvoice(models.Model):
                         'currency_id': invoice.currency_id.id})
                 if credit_aml.payment_id:
                     credit_aml.payment_id.write({'invoice_ids': [(4, self.id, None)]})
+                #raise UserError(_('2'))
                 return invoice.register_payment(credit_aml)
 
